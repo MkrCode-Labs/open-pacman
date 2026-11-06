@@ -13,6 +13,10 @@ const OPPOSITE = { left: 'right', right: 'left', up: 'down', down: 'up' };
 const PACMAN_SPEED = 0.125; // 1/8 celda/frame -> alinea cada 8 frames
 const GHOST_SPEED = 0.1;    // 1/10 celda/frame
 
+// Region de la pen (interior + puerta) y celda objetivo para salir de ella.
+const PEN = { xMin: 11, xMax: 16, yMin: 12, yMax: 15 };
+const PEN_EXIT = { x: 13, y: 11 };
+
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
 function createGame() {
@@ -27,6 +31,7 @@ function createGame() {
     state: 'start',
     score: 0,
     lives: 3,
+    frame: 0,
     dotsRemaining: dots,
     grid,
     pacman: {
@@ -42,6 +47,7 @@ function createGame() {
       dir: 'up',
       speed: GHOST_SPEED,
       kind: g.kind,
+      releaseAt: g.releaseAt,
     } ) ),
   };
 }
@@ -134,7 +140,19 @@ function chooseToTarget( game, g, tx, ty ) {
   g.dir = best;
 }
 
+// Esta el fantasma dentro de la region de la pen (incluida la puerta)?
+function inPen( g ) {
+  const x = Math.round( g.x );
+  const y = Math.round( g.y );
+  return x >= PEN.xMin && x <= PEN.xMax && y >= PEN.yMin && y <= PEN.yMax;
+}
+
 function decideGhost( game, g ) {
+  if ( inPen( g ) ) {
+    // Dentro de la pen el unico objetivo es la celda de salida.
+    chooseToTarget( game, g, PEN_EXIT.x, PEN_EXIT.y );
+    return;
+  }
   if ( g.kind !== 'blinky' ) {
     const choices = legalChoices( game, g );
     g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
@@ -167,6 +185,8 @@ function resetPositions( game ) {
   p.y = PACMAN_START.y;
   p.dir = 'left';
   p.nextDir = null;
+  // Reiniciar el reloj hace que la salida de la pen vuelva a ser escalonada.
+  game.frame = 0;
   game.ghosts.forEach( ( g, i ) => {
     g.x = GHOST_STARTS[ i ].x;
     g.y = GHOST_STARTS[ i ].y;
@@ -179,8 +199,11 @@ function collides( a, b ) {
 }
 
 function update( game ) {
+  game.frame++;
   movePacman( game );
-  game.ghosts.forEach( ( g ) => moveGhost( game, g ) );
+  game.ghosts.forEach( ( g ) => {
+    if ( game.frame >= g.releaseAt ) moveGhost( game, g );
+  } );
 
   for ( const g of game.ghosts ) {
     if ( collides( game.pacman, g ) ) {
