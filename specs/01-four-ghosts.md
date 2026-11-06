@@ -23,7 +23,7 @@
 
 - Power-ups y modo asustado de los fantasmas.
 - Ciclos de épocas scatter/chase alternadas (decisión: comportamiento fijo).
-- Velocidades distintas por fantasma (decisión: todos a `GHOST_SPEED` 0.1).
+- Velocidades distintas por fantasma (decisión: todos a `GHOST_SPEED` 0.0625).
 - Dificultad progresiva por nivel.
 - Sonido y animaciones extra.
 
@@ -65,7 +65,7 @@ const CLYDE_CORNER = { x: 1, y: 29 }; // rincón inferior izquierda
 
 - [ ] El juego carga y la consola no muestra errores.
 - [ ] Se ven 4 fantasmas con los 4 colores de `GHOST_COLORS` (rojo, cian, rosa, naranja).
-- [ ] Todos los fantasmas se mueven a la misma velocidad (`GHOST_SPEED` 0.1).
+- [ ] Todos los fantasmas se mueven a la misma velocidad (`GHOST_SPEED` 0.05).
 - [ ] Blinky sale de la pen ni bien arranca la partida y en cada intersección reduce (o mantiene por empate) la distancia a Pac-Man — nunca huye.
 - [ ] Pinky sale a los ~3 s y avanza hacia un punto por delante de Pac-Man: cuando Pac-Man va hacia la izquierda, Pinky avanza hacia la izquierda de Pac-Man (no hacia él).
 - [ ] Inky sale a los ~6 s y su trayectoria refleja la posición de Blinky respecto a un punto 2 casillas delante de Pac-Man.
@@ -81,7 +81,7 @@ const CLYDE_CORNER = { x: 1, y: 29 }; // rincón inferior izquierda
 - **No:** fantasmas inventados. Las clásicas son conocidas, documentadas y más fáciles de verificar que 4 intros propias.
 - **Sí:** salida escalonada por tiempo fijo (`releaseAt` en frames). Es lo más simple que da progresión y no acopla el contador de dots a la salida.
 - **No:** salida por dots comidos. Fiel al arcade pero añade acoplamiento con la mecánica de comer.
-- **Sí:** velocidad única `GHOST_SPEED` 0.1 para los 4. La diferencia de peligro la da la IA, no la velocidad; 0.125 (igual que Pac-Man) rompería el equilibrio.
+- **Sí:** velocidad única `GHOST_SPEED` 0.05 (1/20 celda/frame) para los 4, y `PACMAN_SPEED` 0.0625 (1/16). Ajuste de calibración post-implementación en dos pasos: 0.1/0.1 eran demasiado rápidos, 0.1/0.0625 aún un punto densos. Siempre múltiplos 1/n para no romper el movimiento alineado al grid.
 - **No:** velocidades distintas por fantasma. Complica el movimiento alineado al grid y no aporta a la petición.
 - **Sí:** sin ciclos scatter/chase, comportamiento fijo. Cumple la petición con menos máquina de estados; los ciclos pueden ser su propio spec.
 - **Sí:** objetivo de Pinky = `pacman + 4·dir` simple (sin el overflow-up del arcade de 1980). El bug original es una curiosidad histórica, no una feature deseable.
