@@ -110,35 +110,38 @@ function movePacman( game ) {
   wrapTunnel( p, width );
 }
 
-function decideGhost( game, g ) {
-  const grid = game.grid;
-  const p = game.pacman;
-
+// Opciones de giro legales: sin volver atras; en callejon se permite el 180.
+function legalChoices( game, g ) {
   const options = Object.keys( DIRS ).filter(
-    ( dir ) => dir !== OPPOSITE[ g.dir ] && canMove( grid, g.x, g.y, dir, 'ghost' )
+    ( dir ) => dir !== OPPOSITE[ g.dir ] && canMove( game.grid, g.x, g.y, dir, 'ghost' )
   );
-  // Sin salida (callejon): permitir el giro de 180.
-  const choices = options.length ? options : [ '' + OPPOSITE[ g.dir ] ];
+  return options.length ? options : [ OPPOSITE[ g.dir ] ];
+}
 
-  if ( g.kind === 'hunter' ) {
-    const px = Math.round( p.x );
-    const py = Math.round( p.y );
-    let best = choices[ 0 ];
-    let bestDist = Infinity;
-    for ( const dir of choices ) {
-      const d = DIRS[ dir ];
-      const nx = g.x + d.x;
-      const ny = g.y + d.y;
-      const dist = Math.abs( nx - px ) + Math.abs( ny - py );
-      if ( dist < bestDist ) {
-        bestDist = dist;
-        best = dir;
-      }
+// Greedy Manhattan hacia (tx,ty): elige la direccion que minimiza la
+// distancia al objetivo. Empates: gana la primera de legalChoices.
+function chooseToTarget( game, g, tx, ty ) {
+  let best;
+  let bestDist = Infinity;
+  for ( const dir of legalChoices( game, g ) ) {
+    const d = DIRS[ dir ];
+    const dist = Math.abs( g.x + d.x - tx ) + Math.abs( g.y + d.y - ty );
+    if ( dist < bestDist ) {
+      bestDist = dist;
+      best = dir;
     }
-    g.dir = best;
-  } else {
-    g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
   }
+  g.dir = best;
+}
+
+function decideGhost( game, g ) {
+  if ( g.kind !== 'blinky' ) {
+    const choices = legalChoices( game, g );
+    g.dir = choices[ Math.floor( Math.random() * choices.length ) ];
+    return;
+  }
+  const p = game.pacman;
+  chooseToTarget( game, g, Math.round( p.x ), Math.round( p.y ) );
 }
 
 function moveGhost( game, g ) {
