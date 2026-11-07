@@ -128,7 +128,14 @@ function movePacman( game ) {
       grid[ p.y ][ p.x ] = 0;
       game.score += PELLET_POINTS;
       game.dotsRemaining--;
-      game.floaters.push( { x: p.x, y: p.y, born: game.frame } );
+      game.floaters.push( { x: p.x, y: p.y, born: game.frame, text: '+50' } );
+      // Pellet nuevo reinicia el timer y la cadena de puntos.
+      game.frightUntil = game.frame + FRIGHT_FRAMES;
+      game.frightChain = 0;
+      game.ghosts.forEach( ( g ) => {
+        g.frightened = true;
+        g.immune = false;
+      } );
     }
     // Si no puede seguir, se detiene en la celda.
     if ( !canMove( grid, p.x, p.y, p.dir, 'pacman' ) ) return;
