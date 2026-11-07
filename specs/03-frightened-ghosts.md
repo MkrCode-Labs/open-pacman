@@ -1,6 +1,6 @@
 # SPEC 03 — Modo asustado: fantasmas comibles
 
-> **Estado:** Aprovado
+> **Estado:** Implementado
 > **Depende de:** SPEC 01 (Cuatro fantasmas con IA clásica arcade) y SPEC 02 (Power pellets) — ambos implementados
 > **Fecha:** 2026-11-06
 > **Objetivo:** Al comer un power pellet los fantasmas se vuelven azules, huyen más lento y son comibles durante ~6 s, devolviendo puntos en cadena 200/400/800/1600 y reapareciendo en su spawn.
