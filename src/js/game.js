@@ -181,6 +181,25 @@ function chooseToTarget( game, g, tx, ty ) {
   g.dir = best;
 }
 
+// Greedy Manhattan huyendo de Pac-Man: elige la direccion que MAXIMIZA la
+// distancia a su celda. Simetrico a chooseToTarget, sobre legalChoices.
+function chooseFlee( game, g ) {
+  const p = game.pacman;
+  const px = Math.round( p.x );
+  const py = Math.round( p.y );
+  let best;
+  let bestDist = -Infinity;
+  for ( const dir of legalChoices( game, g ) ) {
+    const d = DIRS[ dir ];
+    const dist = Math.abs( g.x + d.x - px ) + Math.abs( g.y + d.y - py );
+    if ( dist > bestDist ) {
+      bestDist = dist;
+      best = dir;
+    }
+  }
+  g.dir = best;
+}
+
 // Esta el fantasma dentro de la region de la pen (incluida la puerta)?
 function inPen( g ) {
   const x = Math.round( g.x );
@@ -224,6 +243,11 @@ function decideGhost( game, g ) {
   if ( inPen( g ) ) {
     // Dentro de la pen el unico objetivo es la celda de salida.
     chooseToTarget( game, g, PEN_EXIT.x, PEN_EXIT.y );
+    return;
+  }
+  // Asustado y fuera de la pen: huye de Pac-Man; si no, personalidad.
+  if ( g.frightened ) {
+    chooseFlee( game, g );
     return;
   }
   let target;
