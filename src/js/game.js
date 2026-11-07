@@ -316,10 +316,15 @@ function resetPositions( game ) {
   p.nextDir = null;
   // Reiniciar el reloj hace que la salida de la pen vuelva a ser escalonada.
   game.frame = 0;
+  // El reset tambien cancela el modo asustado (el timer quedaria corrupto).
+  game.frightUntil = 0;
+  game.frightChain = 0;
   game.ghosts.forEach( ( g, i ) => {
     g.x = GHOST_STARTS[ i ].x;
     g.y = GHOST_STARTS[ i ].y;
     g.dir = 'up';
+    g.frightened = false;
+    g.immune = false;
   } );
 }
 
@@ -330,6 +335,15 @@ function collides( a, b ) {
 function update( game ) {
   game.frame++;
   game.floaters = game.floaters.filter( ( f ) => game.frame - f.born < FLOAT_LIFETIME );
+  // Expira el modo asustado: todos vuelven a normal.
+  if ( game.frightUntil && game.frame >= game.frightUntil ) {
+    game.frightUntil = 0;
+    game.frightChain = 0;
+    game.ghosts.forEach( ( g ) => {
+      g.frightened = false;
+      g.immune = false;
+    } );
+  }
   movePacman( game );
   game.ghosts.forEach( ( g ) => {
     if ( game.frame >= g.releaseAt ) moveGhost( game, g );
