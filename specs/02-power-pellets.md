@@ -1,6 +1,6 @@
 # SPEC 02 — Power pellets con animación de puntuación
 
-> **Estado:** Aceptado
+> **Estado:** Implementado
 > **Depende de:** SPEC 01 (Cuatro fantasmas con IA clásica arcade) — ya implementado
 > **Fecha:** 2026-11-06
 > **Objetivo:** 4 power pellets en el laberinto (posiciones arcade) que valen 50 puntos y muestran un '+50' flotante justo donde se comieron.
