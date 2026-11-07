@@ -21,6 +21,10 @@ const INKY_AHEAD = 2;
 const CLYDE_SHY_DIST = 8;             // huye si dist < 8
 const CLYDE_CORNER = { x: 1, y: 29 }; // rincon inferior izquierdo
 
+// Power pellets y su animacion.
+const PELLET_POINTS = 50;
+const FLOAT_LIFETIME = 60; // frames (~1 s) que dura el "+50" flotante
+
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
 function createGame() {
@@ -37,6 +41,7 @@ function createGame() {
     lives: 3,
     frame: 0,
     dotsRemaining: dots,
+    floaters: [],
     grid,
     pacman: {
       x: PACMAN_START.x,
@@ -112,8 +117,9 @@ function movePacman( game ) {
     }
     if ( grid[ p.y ][ p.x ] === 4 ) {
       grid[ p.y ][ p.x ] = 0;
-      game.score += 50;
+      game.score += PELLET_POINTS;
       game.dotsRemaining--;
+      game.floaters.push( { x: p.x, y: p.y, born: game.frame } );
     }
     // Si no puede seguir, se detiene en la celda.
     if ( !canMove( grid, p.x, p.y, p.dir, 'pacman' ) ) return;
@@ -261,6 +267,7 @@ function collides( a, b ) {
 
 function update( game ) {
   game.frame++;
+  game.floaters = game.floaters.filter( ( f ) => game.frame - f.born < FLOAT_LIFETIME );
   movePacman( game );
   game.ghosts.forEach( ( g ) => {
     if ( game.frame >= g.releaseAt ) moveGhost( game, g );
