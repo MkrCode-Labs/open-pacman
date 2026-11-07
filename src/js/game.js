@@ -104,47 +104,72 @@ function wrapTunnel( a, width ) {
   }
 }
 
-function movePacman( game ) {
-  const p = game.pacman;
+// Decide dir de Pacman, come lo que pisa y devuelve true si quedo bloqueado
+// (para que moveGrid lo frene en ese centro de celda).
+function pacmanDecide( game, p ) {
   const grid = game.grid;
-  const width = grid[ 0 ].length;
 
-  if ( aligned( p.x ) && aligned( p.y ) ) {
-    p.x = Math.round( p.x );
-    p.y = Math.round( p.y );
-
-    // Aplicar giro pendiente si es posible.
-    if ( p.nextDir && canMove( grid, p.x, p.y, p.nextDir, 'pacman' ) ) {
-      p.dir = p.nextDir;
-      p.nextDir = null;
-    }
-    // Comer dot o power pellet.
-    if ( grid[ p.y ][ p.x ] === 2 ) {
-      grid[ p.y ][ p.x ] = 0;
-      game.score += 10;
-      game.dotsRemaining--;
-    }
-    if ( grid[ p.y ][ p.x ] === 4 ) {
-      grid[ p.y ][ p.x ] = 0;
-      game.score += PELLET_POINTS;
-      game.dotsRemaining--;
-      game.floaters.push( { x: p.x, y: p.y, born: game.frame, text: '+50' } );
-      // Pellet nuevo reinicia el timer y la cadena de puntos.
-      game.frightUntil = game.frame + FRIGHT_FRAMES;
-      game.frightChain = 0;
-      game.ghosts.forEach( ( g ) => {
-        g.frightened = true;
-        g.immune = false;
-      } );
-    }
-    // Si no puede seguir, se detiene en la celda.
-    if ( !canMove( grid, p.x, p.y, p.dir, 'pacman' ) ) return;
+  // Aplicar giro pendiente si es viable.
+  if ( p.nextDir && canMove( grid, p.x, p.y, p.nextDir, 'pacman' ) ) {
+    p.dir = p.nextDir;
+    p.nextDir = null;
   }
+  // Comer dot o power pellet.
+  const tile = grid[ p.y ][ p.x ];
+  if ( tile === 2 ) {
+    grid[ p.y ][ p.x ] = 0;
+    game.score += 10;
+    game.dotsRemaining--;
+  }
+  if ( tile === 4 ) {
+    grid[ p.y ][ p.x ] = 0;
+    game.score += PELLET_POINTS;
+    game.dotsRemaining--;
+    game.floaters.push( { x: p.x, y: p.y, born: game.frame, text: '+50' } );
+    // Pellet nuevo reinicia el timer y la cadena de puntos.
+    game.frightUntil = game.frame + FRIGHT_FRAMES;
+    game.frightChain = 0;
+    game.ghosts.forEach( ( g ) => {
+      g.frightened = true;
+      g.immune = false;
+    } );
+  }
+  return !canMove( grid, p.x, p.y, p.dir, 'pacman' );
+}
 
-  const d = DIRS[ p.dir ];
-  p.x += d.x * p.speed;
-  p.y += d.y * p.speed;
-  wrapTunnel( p, width );
+// Mueve al actor hasta 'dist' celdas en su dir. Cada vez que cruza un centro
+// de celda llama a decide(): cambia dir y/o come; si devuelve true (bloqueado)
+// se detiene en esa celda. El avance se corta exactamente en el proximo
+// centro, asi la alineacion con el grid NUNCA se pierde aunque la velocidad
+// cambie a mitad de celda (modo asustado).
+function moveGrid( game, a, dist, decide ) {
+  const width = game.grid[ 0 ].length;
+  let remaining = dist;
+  for ( let guard = 0; remaining > 1e-9 && guard < 40; guard++ ) {
+    if ( aligned( a.x ) && aligned( a.y ) ) {
+      a.x = Math.round( a.x );
+      a.y = Math.round( a.y );
+      if ( decide( game, a ) ) return;
+    }
+    const d = DIRS[ a.dir ];
+    if ( !d ) return;
+    const horizontal = d.x !== 0;
+    const pos = horizontal ? a.x : a.y;
+    const advancing = horizontal ? d.x > 0 : d.y > 0;
+    // Distancia al proximo entero en la direccion del avance.
+    const gap = advancing
+      ? Math.ceil( pos + 1e-9 ) - pos
+      : pos - Math.floor( pos - 1e-9 );
+    const step = Math.min( remaining, gap );
+    if ( horizontal ) a.x += d.x * step;
+    else a.y += d.y * step;
+    remaining -= step;
+    wrapTunnel( a, width );
+  }
+}
+
+function movePacman( game ) {
+  moveGrid( game, game.pacman, game.pacman.speed, pacmanDecide );
 }
 
 // Opciones de giro legales: sin volver atras; en callejon se permite el 180.
@@ -269,22 +294,15 @@ function decideGhost( game, g ) {
   chooseToTarget( game, g, target.x, target.y );
 }
 
+// Decidir dir del fantasma y devolver true si la dir elegida esta bloqueada.
+function ghostDecide( game, g ) {
+  decideGhost( game, g );
+  return !canMove( game.grid, g.x, g.y, g.dir, 'ghost' );
+}
+
 function moveGhost( game, g ) {
-  const grid = game.grid;
-  const width = grid[ 0 ].length;
-
-  if ( aligned( g.x ) && aligned( g.y ) ) {
-    g.x = Math.round( g.x );
-    g.y = Math.round( g.y );
-    decideGhost( game, g );
-    if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
-  }
-
-  const d = DIRS[ g.dir ];
   const speed = g.frightened ? FRIGHT_SPEED : GHOST_SPEED;
-  g.x += d.x * speed;
-  g.y += d.y * speed;
-  wrapTunnel( g, width );
+  moveGrid( game, g, speed, ghostDecide );
 }
 
 // Devora el fantasma asustado: puntos en cadena, floater y teletransporte
@@ -323,6 +341,9 @@ function resetPositions( game ) {
     g.x = GHOST_STARTS[ i ].x;
     g.y = GHOST_STARTS[ i ].y;
     g.dir = 'up';
+    // Restaurar su tiempo de salida original para que el escalonamiento
+    // vuelva a repetirse tal cual al inicio de la partida.
+    g.releaseAt = GHOST_STARTS[ i ].releaseAt;
     g.frightened = false;
     g.immune = false;
   } );
@@ -373,3 +394,4 @@ window.update = update;
 window.DIRS = DIRS;
 window.PELLET_POINTS = PELLET_POINTS;
 window.FLOAT_LIFETIME = FLOAT_LIFETIME;
+window.FRIGHT_FLASH_FRAMES = FRIGHT_FLASH_FRAMES;
