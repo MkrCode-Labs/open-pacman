@@ -79,6 +79,29 @@ function drawDots( ctx, grid ) {
   }
 }
 
+const PELLET_COLOR = '#ffb897';
+const PELLET_RADIUS = 6;
+const PELLET_BLINK_PERIOD = 22; // visible 11 frames, oculto 11 frames
+
+// Parpadeo: encendido durante la primera mitad del ciclo.
+function pelletVisible( frame ) {
+  return frame % PELLET_BLINK_PERIOD < PELLET_BLINK_PERIOD / 2;
+}
+
+function drawPellets( ctx, grid, frame ) {
+  if ( !pelletVisible( frame ) ) return;
+  ctx.fillStyle = PELLET_COLOR;
+  for ( let y = 0; y < grid.length; y++ ) {
+    for ( let x = 0; x < grid[ 0 ].length; x++ ) {
+      if ( grid[ y ][ x ] !== 4 ) continue;
+      const { cx, cy } = cellCenter( x, y );
+      ctx.beginPath();
+      ctx.arc( cx, cy, PELLET_RADIUS, 0, Math.PI * 2 );
+      ctx.fill();
+    }
+  }
+}
+
 function drawPacman( ctx, p, frame ) {
   const { cx, cy } = cellCenter( p.x, p.y );
   let rot = 0;
@@ -157,6 +180,7 @@ function draw( ctx, game, frame ) {
   drawWalls( ctx, grid );
   drawDoor( ctx, grid );
   drawDots( ctx, grid );
+  drawPellets( ctx, grid, frame );
   drawPacman( ctx, game.pacman, frame );
   game.ghosts.forEach( ( g, i ) => drawGhost( ctx, g, GHOST_COLORS[ i ] || '#ff0000' ) );
   drawHUD( ctx, game, W );
