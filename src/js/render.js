@@ -136,7 +136,7 @@ function drawFloaters( ctx, game ) {
     const t = Math.min( 1, Math.max( 0, ( game.frame - f.born ) / FLOAT_LIFETIME ) );
     const { cx, cy } = cellCenter( f.x, f.y );
     ctx.globalAlpha = 1 - t;
-    ctx.fillText( '+' + PELLET_POINTS, cx, cy - FLOAT_RISE * t );
+    ctx.fillText( f.text || '+' + PELLET_POINTS, cx, cy - FLOAT_RISE * t );
   }
   ctx.globalAlpha = 1;
 }
@@ -189,6 +189,20 @@ function drawHUD( ctx, game, W ) {
 
 const GHOST_COLORS = [ '#ff0000', '#00ffff', '#ffb8ff', '#ffb852' ];
 
+const FRIGHT_COLOR = '#2121de';       // azul arcade
+const FRIGHT_FLASH_COLOR = '#ffffff'; // parpadeo final
+
+// Color del fantasma: el suyo por defecto; azul si esta asustado, con
+// parpadeo azul/blanco cuando el modo asustado esta por terminar.
+function ghostColor( game, g, i ) {
+  if ( !g.frightened ) return GHOST_COLORS[ i ] || '#ff0000';
+  const remaining = game.frightUntil - game.frame;
+  if ( remaining < window.FRIGHT_FLASH_FRAMES && game.frame % 10 < 5 ) {
+    return FRIGHT_FLASH_COLOR;
+  }
+  return FRIGHT_COLOR;
+}
+
 function draw( ctx, game, frame ) {
   const grid = game.grid;
   const W = grid[ 0 ].length;
@@ -202,7 +216,7 @@ function draw( ctx, game, frame ) {
   drawDots( ctx, grid );
   drawPellets( ctx, grid, frame );
   drawPacman( ctx, game.pacman, frame );
-  game.ghosts.forEach( ( g, i ) => drawGhost( ctx, g, GHOST_COLORS[ i ] || '#ff0000' ) );
+  game.ghosts.forEach( ( g, i ) => drawGhost( ctx, g, ghostColor( game, g, i ) ) );
   drawFloaters( ctx, game );
   drawHUD( ctx, game, W );
 }

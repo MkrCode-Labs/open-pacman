@@ -25,6 +25,12 @@ const CLYDE_CORNER = { x: 1, y: 29 }; // rincon inferior izquierdo
 const PELLET_POINTS = 50;
 const FLOAT_LIFETIME = 60; // frames (~1 s) que dura el "+50" flotante
 
+// Modo asustado (power pellets).
+const FRIGHT_FRAMES = 360;       // ~6 s de modo asustado
+const FRIGHT_SPEED = 0.04;       // 1/25 celda/frame (mas lento que GHOST_SPEED)
+const FRIGHT_FLASH_FRAMES = 120; // ultimos ~2 s: parpadeo
+const GHOST_POINTS_BASE = 200;   // cadena 200 -> 400 -> 800 -> 1600
+
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
 function createGame() {
@@ -42,6 +48,8 @@ function createGame() {
     frame: 0,
     dotsRemaining: dots,
     floaters: [],
+    frightUntil: 0, // frame en el que expira el modo asustado; 0 = inactivo
+    frightChain: 0, // fantasmas comidos en el periodo de asustado actual
     grid,
     pacman: {
       x: PACMAN_START.x,
@@ -54,9 +62,10 @@ function createGame() {
       x: g.x,
       y: g.y,
       dir: 'up',
-      speed: GHOST_SPEED,
       kind: g.kind,
       releaseAt: g.releaseAt,
+      frightened: false, // azul, comible y huye
+      immune: false,     // devorado: ni comible ni letal hasta el fin del asustado
     } ) ),
   };
 }
@@ -95,40 +104,72 @@ function wrapTunnel( a, width ) {
   }
 }
 
-function movePacman( game ) {
-  const p = game.pacman;
+// Decide dir de Pacman, come lo que pisa y devuelve true si quedo bloqueado
+// (para que moveGrid lo frene en ese centro de celda).
+function pacmanDecide( game, p ) {
   const grid = game.grid;
-  const width = grid[ 0 ].length;
 
-  if ( aligned( p.x ) && aligned( p.y ) ) {
-    p.x = Math.round( p.x );
-    p.y = Math.round( p.y );
-
-    // Aplicar giro pendiente si es posible.
-    if ( p.nextDir && canMove( grid, p.x, p.y, p.nextDir, 'pacman' ) ) {
-      p.dir = p.nextDir;
-      p.nextDir = null;
-    }
-    // Comer dot o power pellet.
-    if ( grid[ p.y ][ p.x ] === 2 ) {
-      grid[ p.y ][ p.x ] = 0;
-      game.score += 10;
-      game.dotsRemaining--;
-    }
-    if ( grid[ p.y ][ p.x ] === 4 ) {
-      grid[ p.y ][ p.x ] = 0;
-      game.score += PELLET_POINTS;
-      game.dotsRemaining--;
-      game.floaters.push( { x: p.x, y: p.y, born: game.frame } );
-    }
-    // Si no puede seguir, se detiene en la celda.
-    if ( !canMove( grid, p.x, p.y, p.dir, 'pacman' ) ) return;
+  // Aplicar giro pendiente si es viable.
+  if ( p.nextDir && canMove( grid, p.x, p.y, p.nextDir, 'pacman' ) ) {
+    p.dir = p.nextDir;
+    p.nextDir = null;
   }
+  // Comer dot o power pellet.
+  const tile = grid[ p.y ][ p.x ];
+  if ( tile === 2 ) {
+    grid[ p.y ][ p.x ] = 0;
+    game.score += 10;
+    game.dotsRemaining--;
+  }
+  if ( tile === 4 ) {
+    grid[ p.y ][ p.x ] = 0;
+    game.score += PELLET_POINTS;
+    game.dotsRemaining--;
+    game.floaters.push( { x: p.x, y: p.y, born: game.frame, text: '+50' } );
+    // Pellet nuevo reinicia el timer y la cadena de puntos.
+    game.frightUntil = game.frame + FRIGHT_FRAMES;
+    game.frightChain = 0;
+    game.ghosts.forEach( ( g ) => {
+      g.frightened = true;
+      g.immune = false;
+    } );
+  }
+  return !canMove( grid, p.x, p.y, p.dir, 'pacman' );
+}
 
-  const d = DIRS[ p.dir ];
-  p.x += d.x * p.speed;
-  p.y += d.y * p.speed;
-  wrapTunnel( p, width );
+// Mueve al actor hasta 'dist' celdas en su dir. Cada vez que cruza un centro
+// de celda llama a decide(): cambia dir y/o come; si devuelve true (bloqueado)
+// se detiene en esa celda. El avance se corta exactamente en el proximo
+// centro, asi la alineacion con el grid NUNCA se pierde aunque la velocidad
+// cambie a mitad de celda (modo asustado).
+function moveGrid( game, a, dist, decide ) {
+  const width = game.grid[ 0 ].length;
+  let remaining = dist;
+  for ( let guard = 0; remaining > 1e-9 && guard < 40; guard++ ) {
+    if ( aligned( a.x ) && aligned( a.y ) ) {
+      a.x = Math.round( a.x );
+      a.y = Math.round( a.y );
+      if ( decide( game, a ) ) return;
+    }
+    const d = DIRS[ a.dir ];
+    if ( !d ) return;
+    const horizontal = d.x !== 0;
+    const pos = horizontal ? a.x : a.y;
+    const advancing = horizontal ? d.x > 0 : d.y > 0;
+    // Distancia al proximo entero en la direccion del avance.
+    const gap = advancing
+      ? Math.ceil( pos + 1e-9 ) - pos
+      : pos - Math.floor( pos - 1e-9 );
+    const step = Math.min( remaining, gap );
+    if ( horizontal ) a.x += d.x * step;
+    else a.y += d.y * step;
+    remaining -= step;
+    wrapTunnel( a, width );
+  }
+}
+
+function movePacman( game ) {
+  moveGrid( game, game.pacman, game.pacman.speed, pacmanDecide );
 }
 
 // Opciones de giro legales: sin volver atras; en callejon se permite el 180.
@@ -158,6 +199,25 @@ function chooseToTarget( game, g, tx, ty ) {
     const d = DIRS[ dir ];
     const dist = Math.abs( g.x + d.x - tx ) + Math.abs( g.y + d.y - ty );
     if ( dist < bestDist ) {
+      bestDist = dist;
+      best = dir;
+    }
+  }
+  g.dir = best;
+}
+
+// Greedy Manhattan huyendo de Pac-Man: elige la direccion que MAXIMIZA la
+// distancia a su celda. Simetrico a chooseToTarget, sobre legalChoices.
+function chooseFlee( game, g ) {
+  const p = game.pacman;
+  const px = Math.round( p.x );
+  const py = Math.round( p.y );
+  let best;
+  let bestDist = -Infinity;
+  for ( const dir of legalChoices( game, g ) ) {
+    const d = DIRS[ dir ];
+    const dist = Math.abs( g.x + d.x - px ) + Math.abs( g.y + d.y - py );
+    if ( dist > bestDist ) {
       bestDist = dist;
       best = dir;
     }
@@ -210,6 +270,11 @@ function decideGhost( game, g ) {
     chooseToTarget( game, g, PEN_EXIT.x, PEN_EXIT.y );
     return;
   }
+  // Asustado y fuera de la pen: huye de Pac-Man; si no, personalidad.
+  if ( g.frightened ) {
+    chooseFlee( game, g );
+    return;
+  }
   let target;
   switch ( g.kind ) {
     case 'blinky': {
@@ -229,21 +294,36 @@ function decideGhost( game, g ) {
   chooseToTarget( game, g, target.x, target.y );
 }
 
+// Decidir dir del fantasma y devolver true si la dir elegida esta bloqueada.
+function ghostDecide( game, g ) {
+  decideGhost( game, g );
+  return !canMove( game.grid, g.x, g.y, g.dir, 'ghost' );
+}
+
 function moveGhost( game, g ) {
-  const grid = game.grid;
-  const width = grid[ 0 ].length;
+  const speed = g.frightened ? FRIGHT_SPEED : GHOST_SPEED;
+  moveGrid( game, g, speed, ghostDecide );
+}
 
-  if ( aligned( g.x ) && aligned( g.y ) ) {
-    g.x = Math.round( g.x );
-    g.y = Math.round( g.y );
-    decideGhost( game, g );
-    if ( !canMove( grid, g.x, g.y, g.dir, 'ghost' ) ) return;
-  }
-
-  const d = DIRS[ g.dir ];
-  g.x += d.x * g.speed;
-  g.y += d.y * g.speed;
-  wrapTunnel( g, width );
+// Devora el fantasma asustado: puntos en cadena, floater y teletransporte
+// a su spawn (sale de la pen de nuevo de inmediato) con inmunidad hasta el
+// fin del modo asustado.
+function eatGhost( game, g, i ) {
+  const puntos = GHOST_POINTS_BASE << Math.min( game.frightChain, 3 );
+  game.score += puntos;
+  game.frightChain++;
+  game.floaters.push( {
+    x: Math.round( g.x ),
+    y: Math.round( g.y ),
+    born: game.frame,
+    text: '+' + puntos,
+  } );
+  g.x = GHOST_STARTS[ i ].x;
+  g.y = GHOST_STARTS[ i ].y;
+  g.dir = 'up';
+  g.frightened = false;
+  g.immune = true;
+  g.releaseAt = game.frame;
 }
 
 function resetPositions( game ) {
@@ -254,10 +334,18 @@ function resetPositions( game ) {
   p.nextDir = null;
   // Reiniciar el reloj hace que la salida de la pen vuelva a ser escalonada.
   game.frame = 0;
+  // El reset tambien cancela el modo asustado (el timer quedaria corrupto).
+  game.frightUntil = 0;
+  game.frightChain = 0;
   game.ghosts.forEach( ( g, i ) => {
     g.x = GHOST_STARTS[ i ].x;
     g.y = GHOST_STARTS[ i ].y;
     g.dir = 'up';
+    // Restaurar su tiempo de salida original para que el escalonamiento
+    // vuelva a repetirse tal cual al inicio de la partida.
+    g.releaseAt = GHOST_STARTS[ i ].releaseAt;
+    g.frightened = false;
+    g.immune = false;
   } );
 }
 
@@ -268,21 +356,34 @@ function collides( a, b ) {
 function update( game ) {
   game.frame++;
   game.floaters = game.floaters.filter( ( f ) => game.frame - f.born < FLOAT_LIFETIME );
+  // Expira el modo asustado: todos vuelven a normal.
+  if ( game.frightUntil && game.frame >= game.frightUntil ) {
+    game.frightUntil = 0;
+    game.frightChain = 0;
+    game.ghosts.forEach( ( g ) => {
+      g.frightened = false;
+      g.immune = false;
+    } );
+  }
   movePacman( game );
   game.ghosts.forEach( ( g ) => {
     if ( game.frame >= g.releaseAt ) moveGhost( game, g );
   } );
 
-  for ( const g of game.ghosts ) {
-    if ( collides( game.pacman, g ) ) {
-      game.lives--;
-      if ( game.lives <= 0 ) {
-        game.state = 'lost';
-        return;
-      }
-      resetPositions( game );
-      break;
+  for ( let i = 0; i < game.ghosts.length; i++ ) {
+    const g = game.ghosts[ i ];
+    if ( !collides( game.pacman, g ) || g.immune ) continue;
+    if ( g.frightened ) {
+      eatGhost( game, g, i );
+      continue;
     }
+    game.lives--;
+    if ( game.lives <= 0 ) {
+      game.state = 'lost';
+      return;
+    }
+    resetPositions( game );
+    break;
   }
 
   if ( game.dotsRemaining <= 0 ) game.state = 'won';
@@ -293,3 +394,4 @@ window.update = update;
 window.DIRS = DIRS;
 window.PELLET_POINTS = PELLET_POINTS;
 window.FLOAT_LIFETIME = FLOAT_LIFETIME;
+window.FRIGHT_FLASH_FRAMES = FRIGHT_FLASH_FRAMES;
