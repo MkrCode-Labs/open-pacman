@@ -21,6 +21,10 @@ const INKY_AHEAD = 2;
 const CLYDE_SHY_DIST = 8;             // huye si dist < 8
 const CLYDE_CORNER = { x: 1, y: 29 }; // rincon inferior izquierdo
 
+// Power pellets y su animacion.
+const PELLET_POINTS = 50;
+const FLOAT_LIFETIME = 60; // frames (~1 s) que dura el "+50" flotante
+
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
 function createGame() {
@@ -29,7 +33,7 @@ function createGame() {
   grid[ PACMAN_START.y ][ PACMAN_START.x ] = 0;
 
   let dots = 0;
-  for ( const row of grid ) for ( const v of row ) if ( v === 2 ) dots++;
+  for ( const row of grid ) for ( const v of row ) if ( v === 2 || v === 4 ) dots++;
 
   return {
     state: 'start',
@@ -37,6 +41,7 @@ function createGame() {
     lives: 3,
     frame: 0,
     dotsRemaining: dots,
+    floaters: [],
     grid,
     pacman: {
       x: PACMAN_START.x,
@@ -104,11 +109,17 @@ function movePacman( game ) {
       p.dir = p.nextDir;
       p.nextDir = null;
     }
-    // Comer dot.
+    // Comer dot o power pellet.
     if ( grid[ p.y ][ p.x ] === 2 ) {
       grid[ p.y ][ p.x ] = 0;
       game.score += 10;
       game.dotsRemaining--;
+    }
+    if ( grid[ p.y ][ p.x ] === 4 ) {
+      grid[ p.y ][ p.x ] = 0;
+      game.score += PELLET_POINTS;
+      game.dotsRemaining--;
+      game.floaters.push( { x: p.x, y: p.y, born: game.frame } );
     }
     // Si no puede seguir, se detiene en la celda.
     if ( !canMove( grid, p.x, p.y, p.dir, 'pacman' ) ) return;
@@ -256,6 +267,7 @@ function collides( a, b ) {
 
 function update( game ) {
   game.frame++;
+  game.floaters = game.floaters.filter( ( f ) => game.frame - f.born < FLOAT_LIFETIME );
   movePacman( game );
   game.ghosts.forEach( ( g ) => {
     if ( game.frame >= g.releaseAt ) moveGhost( game, g );
@@ -279,3 +291,5 @@ function update( game ) {
 window.createGame = createGame;
 window.update = update;
 window.DIRS = DIRS;
+window.PELLET_POINTS = PELLET_POINTS;
+window.FLOAT_LIFETIME = FLOAT_LIFETIME;

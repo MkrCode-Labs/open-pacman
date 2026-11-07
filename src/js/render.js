@@ -79,6 +79,29 @@ function drawDots( ctx, grid ) {
   }
 }
 
+const PELLET_COLOR = '#ffb897';
+const PELLET_RADIUS = 6;
+const PELLET_BLINK_PERIOD = 22; // visible 11 frames, oculto 11 frames
+
+// Parpadeo: encendido durante la primera mitad del ciclo.
+function pelletVisible( frame ) {
+  return frame % PELLET_BLINK_PERIOD < PELLET_BLINK_PERIOD / 2;
+}
+
+function drawPellets( ctx, grid, frame ) {
+  if ( !pelletVisible( frame ) ) return;
+  ctx.fillStyle = PELLET_COLOR;
+  for ( let y = 0; y < grid.length; y++ ) {
+    for ( let x = 0; x < grid[ 0 ].length; x++ ) {
+      if ( grid[ y ][ x ] !== 4 ) continue;
+      const { cx, cy } = cellCenter( x, y );
+      ctx.beginPath();
+      ctx.arc( cx, cy, PELLET_RADIUS, 0, Math.PI * 2 );
+      ctx.fill();
+    }
+  }
+}
+
 function drawPacman( ctx, p, frame ) {
   const { cx, cy } = cellCenter( p.x, p.y );
   let rot = 0;
@@ -96,6 +119,26 @@ function drawPacman( ctx, p, frame ) {
   ctx.arc( cx, cy, TILE / 2 - 1, rot + open * Math.PI, rot - open * Math.PI );
   ctx.closePath();
   ctx.fill();
+}
+
+// "+50" flotante: nace en la celda del pellet comido, sube
+// FLOAT_RISE px y se desvanece a lo largo de FLOAT_LIFETIME frames.
+const FLOAT_RISE = 6;
+const FLOAT_COLOR = '#fff';
+const FLOAT_FONT = '14px "Courier New", monospace';
+
+function drawFloaters( ctx, game ) {
+  if ( !game.floaters.length ) return;
+  ctx.font = FLOAT_FONT;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = FLOAT_COLOR;
+  for ( const f of game.floaters ) {
+    const t = Math.min( 1, Math.max( 0, ( game.frame - f.born ) / FLOAT_LIFETIME ) );
+    const { cx, cy } = cellCenter( f.x, f.y );
+    ctx.globalAlpha = 1 - t;
+    ctx.fillText( '+' + PELLET_POINTS, cx, cy - FLOAT_RISE * t );
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawGhost( ctx, g, color ) {
@@ -157,8 +200,10 @@ function draw( ctx, game, frame ) {
   drawWalls( ctx, grid );
   drawDoor( ctx, grid );
   drawDots( ctx, grid );
+  drawPellets( ctx, grid, frame );
   drawPacman( ctx, game.pacman, frame );
   game.ghosts.forEach( ( g, i ) => drawGhost( ctx, g, GHOST_COLORS[ i ] || '#ff0000' ) );
+  drawFloaters( ctx, game );
   drawHUD( ctx, game, W );
 }
 
