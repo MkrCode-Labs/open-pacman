@@ -287,6 +287,27 @@ function moveGhost( game, g ) {
   wrapTunnel( g, width );
 }
 
+// Devora el fantasma asustado: puntos en cadena, floater y teletransporte
+// a su spawn (sale de la pen de nuevo de inmediato) con inmunidad hasta el
+// fin del modo asustado.
+function eatGhost( game, g, i ) {
+  const puntos = GHOST_POINTS_BASE << Math.min( game.frightChain, 3 );
+  game.score += puntos;
+  game.frightChain++;
+  game.floaters.push( {
+    x: Math.round( g.x ),
+    y: Math.round( g.y ),
+    born: game.frame,
+    text: '+' + puntos,
+  } );
+  g.x = GHOST_STARTS[ i ].x;
+  g.y = GHOST_STARTS[ i ].y;
+  g.dir = 'up';
+  g.frightened = false;
+  g.immune = true;
+  g.releaseAt = game.frame;
+}
+
 function resetPositions( game ) {
   const p = game.pacman;
   p.x = PACMAN_START.x;
@@ -314,16 +335,20 @@ function update( game ) {
     if ( game.frame >= g.releaseAt ) moveGhost( game, g );
   } );
 
-  for ( const g of game.ghosts ) {
-    if ( collides( game.pacman, g ) ) {
-      game.lives--;
-      if ( game.lives <= 0 ) {
-        game.state = 'lost';
-        return;
-      }
-      resetPositions( game );
-      break;
+  for ( let i = 0; i < game.ghosts.length; i++ ) {
+    const g = game.ghosts[ i ];
+    if ( !collides( game.pacman, g ) || g.immune ) continue;
+    if ( g.frightened ) {
+      eatGhost( game, g, i );
+      continue;
     }
+    game.lives--;
+    if ( game.lives <= 0 ) {
+      game.state = 'lost';
+      return;
+    }
+    resetPositions( game );
+    break;
   }
 
   if ( game.dotsRemaining <= 0 ) game.state = 'won';
