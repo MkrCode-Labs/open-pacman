@@ -25,6 +25,12 @@ const CLYDE_CORNER = { x: 1, y: 29 }; // rincon inferior izquierdo
 const PELLET_POINTS = 50;
 const FLOAT_LIFETIME = 60; // frames (~1 s) que dura el "+50" flotante
 
+// Modo asustado (power pellets).
+const FRIGHT_FRAMES = 360;       // ~6 s de modo asustado
+const FRIGHT_SPEED = 0.04;       // 1/25 celda/frame (mas lento que GHOST_SPEED)
+const FRIGHT_FLASH_FRAMES = 120; // ultimos ~2 s: parpadeo
+const GHOST_POINTS_BASE = 200;   // cadena 200 -> 400 -> 800 -> 1600
+
 // Crea una partida nueva. Copia MAZE (pristino) a game.grid para poder comer
 // dots sin destruir el original, y reiniciar.
 function createGame() {
@@ -42,6 +48,8 @@ function createGame() {
     frame: 0,
     dotsRemaining: dots,
     floaters: [],
+    frightUntil: 0, // frame en el que expira el modo asustado; 0 = inactivo
+    frightChain: 0, // fantasmas comidos en el periodo de asustado actual
     grid,
     pacman: {
       x: PACMAN_START.x,
@@ -54,9 +62,10 @@ function createGame() {
       x: g.x,
       y: g.y,
       dir: 'up',
-      speed: GHOST_SPEED,
       kind: g.kind,
       releaseAt: g.releaseAt,
+      frightened: false, // azul, comible y huye
+      immune: false,     // devorado: ni comible ni letal hasta el fin del asustado
     } ) ),
   };
 }
@@ -241,8 +250,9 @@ function moveGhost( game, g ) {
   }
 
   const d = DIRS[ g.dir ];
-  g.x += d.x * g.speed;
-  g.y += d.y * g.speed;
+  const speed = g.frightened ? FRIGHT_SPEED : GHOST_SPEED;
+  g.x += d.x * speed;
+  g.y += d.y * speed;
   wrapTunnel( g, width );
 }
 
