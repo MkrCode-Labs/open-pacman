@@ -121,6 +121,26 @@ function drawPacman( ctx, p, frame ) {
   ctx.fill();
 }
 
+// "+50" flotante: nace en la celda del pellet comido, sube
+// FLOAT_RISE px y se desvanece a lo largo de FLOAT_LIFETIME frames.
+const FLOAT_RISE = 6;
+const FLOAT_COLOR = '#fff';
+const FLOAT_FONT = '14px "Courier New", monospace';
+
+function drawFloaters( ctx, game ) {
+  if ( !game.floaters.length ) return;
+  ctx.font = FLOAT_FONT;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = FLOAT_COLOR;
+  for ( const f of game.floaters ) {
+    const t = Math.min( 1, Math.max( 0, ( game.frame - f.born ) / FLOAT_LIFETIME ) );
+    const { cx, cy } = cellCenter( f.x, f.y );
+    ctx.globalAlpha = 1 - t;
+    ctx.fillText( '+' + PELLET_POINTS, cx, cy - FLOAT_RISE * t );
+  }
+  ctx.globalAlpha = 1;
+}
+
 function drawGhost( ctx, g, color ) {
   const { cx, cy } = cellCenter( g.x, g.y );
   const r = TILE / 2 - 1;
@@ -183,6 +203,7 @@ function draw( ctx, game, frame ) {
   drawPellets( ctx, grid, frame );
   drawPacman( ctx, game.pacman, frame );
   game.ghosts.forEach( ( g, i ) => drawGhost( ctx, g, GHOST_COLORS[ i ] || '#ff0000' ) );
+  drawFloaters( ctx, game );
   drawHUD( ctx, game, W );
 }
 

@@ -291,3 +291,5 @@ function update( game ) {
 window.createGame = createGame;
 window.update = update;
 window.DIRS = DIRS;
+window.PELLET_POINTS = PELLET_POINTS;
+window.FLOAT_LIFETIME = FLOAT_LIFETIME;
